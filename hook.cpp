@@ -1,4 +1,5 @@
-/* this program aims to model afterRubik's cube using C++.
+extern "C" {
+    /* this program aims to model afterRubik's cube using C++.
     with features including:
     - inifinitive dimensions
     - fine tuning of the GUI using OpenGL
@@ -27,8 +28,6 @@
 #include <stdexcept>
 #include <functional>
 #include <regex>
-using DirectionMap = std::map<std::string, Vector3>;
-using FaceMap = std::map<std::string, std::pair<int, int>>;
 
 /*
 in Python,we call the code as following:
@@ -131,28 +130,52 @@ private:
     // The dimensions is an integer representing the dimensions of the cube.
     // The rotting_matrix is a dict that maps the face to the rotation matrix in the form of {"F":("z", 1), "B":("z", 3), "L":("x", 1), "R":("x", 3), "U":("y", 1), "D":("y", 3)}
     // The crease is a dict that maps the face to the rotation matrix in the form of
+    std::map<std::string, std::pair<std::string, int>> crease = {
+        {"F", {"z", 1}},
+        {"B", {"z", 3}},
+        {"L", {"x", 1}},
+        {"R", {"x", 3}},
+        {"U", {"y", 1}},
+        {"D", {"y", 3}}
+    };
+    std::map<std::string, std::pair<int, int>> position_to_face = {
+        {"F", {3, 1}},
+        {"B", {3, -1}},
+        {"L", {1, -1}},
+        {"R", {1, 1}},
+        {"U", {2, 1}},
+        {"D", {2, -1}}
+    };
+    std::map<std::string, std::function<Matrix3(float)>> rotting_matrix = {
+        {"x", [](float angle) {
+            return Matrix3::rotationX(angle);
+        }},
+        {"y", [](float angle) {
+            return Matrix3::rotationY(angle);
+        }},
+        {"z", [](float angle) {
+            return Matrix3::rotationZ(angle);
+        }}
+    };
 
      // Direction of each face, the first element is the axis, the second is the direction
       // for example, "F" is on the positive z-axis, so its direction is (3, 1)
       // and if the piece is to be rotated, it should be within the range of {diension}, {dimension}-layer_num
     /* data */
 public:
-    Piece();
-    Piece(int dimensions, const Vector3& position, const std::map<std::string, Vector3>& direction)
-        : dimensions(dimensions), position(position), direction(direction) {}
+ Piece(/* args */);
+     Piece();
     int getDimensions() const { return dimensions; };
     Vector3 getPosition() const { return position; };
     bool identify(const std::string& face);
     bool _on_the_right_face(float coord, int layer_num, int reverse_num = 1) const {
+        // Check if the piece is on the right face for a given layer.
         int n = dimensions;
-        int half = n / 2;
-        int abs_coord = static_cast<int>(std::abs(coord));
-        int layer = half - abs_coord + 1;
-        return layer == layer_num;
-    }
+        return (n + 1) / 2 - layer_num <= coord * reverse_num < (n + 1) / 2;
+    };
     void _step(const std::string& face, float theta) {
         // Perform a step of rotation for the piece
-        Matrix3 matrix = rotting_matrix.at(crease.at(face).first)(theta);
+        Matrix3 matrix = rotting_matrix[crease[face].first](theta);
         for (auto& dir : direction) {
             dir.second = matrix * dir.second; // Apply rotation to each direction vector
         }
@@ -189,7 +212,7 @@ public:
                 else if (axis == 3) coord = position.z;
                 if (_on_the_right_face(coord, layer_num, direction_val)) {
                     // The piece is on the right face
-                    makeMove(Piece::crease.at(face).first, t * Piece::crease.at(face).second % 4, layer_num);
+                    makeMove(crease[face].first, t * crease[face].second % 4, layer_num);
                 } else {
                     // std::this_thread::sleep_for(std::chrono::milliseconds(200)); // Uncomment if you want a delay
                 }
@@ -223,44 +246,15 @@ bool Piece::identify(const std::string& face){
 
        def _initialize_pieces(self):
            # Initialize pieces based on the dimensions of the cube
-int Piece::getDimensions() const {
-    return dimensions;
-};
-Vector3 Piece::getPosition() const {
-    return position;
-};
-bool Piece::identify(const std::string& face){
-    return direction.find(face) != direction.end();
-};
-
-// Static member definitions outside the class
-const std::map<std::string, std::pair<std::string, int>> Piece::crease = {
-    {"F", {"z", 1}},
-    {"B", {"z", 3}},
-    {"L", {"x", 1}},
-    {"R", {"x", 3}},
-    {"U", {"y", 1}},
-    {"D", {"y", 3}}
-};
-const std::map<std::string, std::pair<int, int>> Piece::position_to_face = {
-    {"F", {3, 1}},
-    {"B", {3, -1}},
-    {"L", {1, -1}},
-    {"R", {1, 1}},
-    {"U", {2, 1}},
-    {"D", {2, -1}}
-};
-const std::map<std::string, std::function<Matrix3(float)>> Piece::rotting_matrix = {
-    {"x", [](float angle) {
-        return Matrix3::rotationX(angle);
-    }},
-    {"y", [](float angle) {
-        return Matrix3::rotationY(angle);
-    }},
-    {"z", [](float angle) {
-        return Matrix3::rotationZ(angle);
-    }}
-};
+           pieces = []
+           # Add corner, edge, and center pieces based on the dimensions
+           # all the coords will be in the range of [-dimensions/2, dimensions/2] 
+           for x in range(-self.dimensions//2, self.dimensions//2 + 1):
+               for y in range(-self.dimensions//2, self.dimensions//2 + 1):
+                   for z in range(-self.dimensions//2, self.dimensions//2 + 1):
+                       if (abs(x) == self.dimensions//2 or abs(y) == self.dimensions//2 or abs(z) == self.dimensions//2):
+                           direction = {}
+                           if z == self.dimensions//2:
                                direction["F"] = np.array([0, 0, 1])
                            if z == -self.dimensions//2:
                                direction["B"] = np.array([0, 0, -1])
@@ -343,7 +337,7 @@ public:
         // Perform a move on the cube (synchronously for now)
         std::vector<std::function<void()>> tasks;
         for (auto& piece : pieces) {
-            tasks.push_back([piece, face, t, layer_num]() mutable {
+            tasks.push_back([&piece, face, t, layer_num]() {
                 piece.makeMove(face, t, layer_num);
             });
         }
@@ -356,18 +350,17 @@ public:
         std::string move_str;
         for (const auto& move : move_list) {
             std::smatch match;
-            if (std::regex_match(move, match, std::regex(R"(([FRBLUDxyz])(\d*)([']?))"))) {
+            if (std::regex_match(move, match, std::regex(R"(([FRBLUDxyz])(\d*))"))) {
                 std::string face = match[1].str();
                 int layer_num = match[2].length() > 0 ? std::stoi(match[2].str()) : 1;
-                std::string prime = match[3].str();
-                move_str += face + std::to_string(layer_num) + prime + " ";
+                move_str += face + std::to_string(layer_num) + " ";
             }
         }
         return move_str.empty() ? "" : move_str.substr(0, move_str.length() - 1); // Remove trailing space
     };
 };
-// Default constructor
-Piece::Piece() : dimensions(3), position(Vector3(0, 0, 0)) {
+Piece::Piece(/* args */) : dimensions(3), position(Vector3(0, 0, 0)) {
+    // Initialize the piece with default values
     direction["F"] = Vector3(1, 0, 0);
     direction["B"] = Vector3(-1, 0, 0);
     direction["L"] = Vector3(0, 1, 0);
@@ -375,8 +368,6 @@ Piece::Piece() : dimensions(3), position(Vector3(0, 0, 0)) {
     direction["U"] = Vector3(0, 0, 1);
     direction["D"] = Vector3(0, 0, -1);
 }
-    // direction["D"] = Vector3(0, 0, -1);
-
 Piece::Piece() : dimensions(3), position(Vector3(0, 0, 0)) {
     // Initialize the piece with default values
     direction["F"] = Vector3(1, 0, 0);
@@ -399,3 +390,5 @@ int main() {
     }
     return 0;
 }
+}
+
